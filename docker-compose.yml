@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  web:
+    image: 127.0.0.1:5000/stackdemo
+    build: .
+    ports:
+      - "8000:8000"
+
+  bamredis:
+    image: 'bitnami/redis:latest'
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_EXTRA_FLAGS=--maxmemory 100mb
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - 'bamredis-volume:/bitnami'
+    deploy:
+      mode: replicated
+      replicas: 1
+
+  bamredis-slave:
+    image: 'bitnami/redis:latest'
+    depends_on:
+      - bamredis
+    volumes:
+      - 'bamredis-slave-volume:/bitnami'
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=bamredis
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_EXTRA_FLAGS=--maxmemory 100mb
+      - ALLOW_EMPTY_PASSWORD=yes
+    deploy:
+      mode: replicated
+      replicas: 1
+      
+  redis-sentinel:
+    image: 'bitnami/redis-sentinel:latest'
+    depends_on:
+      - bamredis
+      - bamredis-slave
+    environment:
+      - REDIS_MASTER_HOST=bamredis
+      - REDIS_SENTINEL_FAILOVER_TIMEOUT=5000
+      - REDIS_SENTINEL_PORT_NUMBER=10001
+      - REDIS_SENTINEL_ANNOUCE_PORT=10001
+      - ALLOW_EMPTY_PASSWORD=yes
+    deploy:
+      mode: replicated
+      replicas: 3
+                     
+volumes:
+  bamredis-volume:
+    driver: local
+  bamredis-slave-volume:
+    driver: local
